@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500&display=swap" rel="stylesheet">
+    <title>Image Ratings</title>
+    <style>
+        body {
+            font-family: 'Instrument Sans', sans-serif;
+            font-size: medium;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            transition: background-color 0.5s ease-in-out;
+            background-color: #000;
+            color: white;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #original-container,
+        #choice-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        #original-container {
+            width: 100%;
+        }
+
+        #choice-container>div {
+            margin: 0 10px;
+        }
+
+        img {
+            max-width: 100%;
+            max-height: 30vh;
+            object-fit: contain;
+        }
+
+        button {
+            display: block;
+            margin-bottom: 10px;
+            width: 100%;
+            padding: 10px;
+            background-color: #eeeeee;
+            color: #000;
+            font-family: 'Instrument Sans', sans-serif;
+            border: none;
+        }
+
+        button:hover {
+            cursor: pointer;
+            background-color: #8d8d8d;
+        }
+
+        @media (max-height: 568px) {
+            img {
+                max-height: 25vh;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="original-container">
+        <div>
+            <p>Original Image</p>
+            <img id="original" alt="Original Image"><br />
+        </div>
+    </div>
+    <p id="question"></p>
+    <div id="choice-container">
+        <div>
+            <img id="image0" alt="Image A"><br />
+            <button id="button0" onclick="submitRating(0)">Choose A</button>
+        </div>
+        <div>
+            <img id="image1" alt="Image B"><br />
+            <button id="button1" onclick="submitRating(1)">Choose B</button>
+        </div>
+    </div>
+    <script>
+        const trackingId = "UA-206591791-1";
+        let currentPrompt;
+
+        async function fetchPrompt() {
+            const response = await fetch("/get_prompt");
+            currentPrompt = await response.json();
+
+            if (currentPrompt.rating_type != "Unconditional Preference") {
+                document.getElementById("original").src = "data:image/jpeg;base64," + currentPrompt.original;
+                document.getElementById("original-container").style.display = "flex";
+            } else {
+                document.getElementById("original-container").style.display = "none";
+            }
+
+            document.aIndex = Math.random() < 0.5 ? 0 : 1;
+            document.getElementById("image" + document.aIndex).src = "data:image/jpeg;base64," + currentPrompt.a;
+            document.getElementById("image" + (1 - document.aIndex)).src = "data:image/jpeg;base64," + currentPrompt.b;
+
+            rating_type_to_question = {
+                "Alignment": "Which image <b>means the same</b> as the original?",
+                "Conditional Preference": "Which image <b>do you like</b> more?",
+                "Unconditional Preference": "Which image <b>do you like</b> more?"
+            };
+
+            rating_type_to_background = {
+                "Alignment": "#470036",
+                "Conditional Preference": "#263900",
+                "Unconditional Preference": "#292929"
+            };
+
+            let question = rating_type_to_question[currentPrompt.rating_type];
+            let color = rating_type_to_background[currentPrompt.rating_type];
+
+            document.body.style.backgroundColor = color;
+
+            document.getElementById("question").innerHTML = question;
+        }
+
+        async function submitRating(choice) {
+            if (document.aIndex == 1) {
+                choice = 1 - choice;
+            }
+
+            const ratingData = {
+                image_id: currentPrompt.image_id,
+                a_index: currentPrompt.a_index,
+                b_index: currentPrompt.b_index,
+                rating_type: currentPrompt.rating_type,
+                choice: choice === 0 ? "a" : "b",
+                tracking_id: trackingId
+            };
+
+            const response = await fetch("/rating", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(ratingData)
+            });
+
+            if (response.ok) {
+                fetchPrompt();
+            } else {
+                console.error("Failed to save rating");
+            }
+        }
+
+        fetchPrompt();
+    </script>
+</body>
+
+</html>
